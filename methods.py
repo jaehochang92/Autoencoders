@@ -36,3 +36,42 @@ def aug_img(img, augmenter):
     # ia.imshow(img)
     auged_img = augmenter(image = img)
     return auged_img
+
+def prprdata(w, h, fs, IMAGES, augmenters_c):
+    index = 1
+    frames = []
+    aimgs = []
+
+    resizer = ia.size.Resize({"height": h, "width": w})
+    gray_scaler = ia.Grayscale()
+    print(resizer)
+    
+    for IMAGE in IMAGES:
+        for _, augmenters in augmenters_c.items():
+            for augmenter_name, augmenter in augmenters.items():
+                cap = cv2.VideoCapture(IMAGE)
+                fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+                noisy_out = cv2.VideoWriter(f"{augmenter_name}_{IMAGE.split('/')[-1].split('.')[0]}.avi", fourcc, 5, (w, h))
+                clean_out = cv2.VideoWriter(f"{IMAGE.split('/')[-1].split('.')[0]}.avi", fourcc, 5, (w, h))
+                ret, frame = cap.read()
+                k = int(8000 / fs)
+                while ret and index < fs * k:
+                    if index % fs == 0:
+                        frame = resizer.augment_image(frame)
+#                         frame = gray_scaler.augment_image(frame)
+                        frames.append(frame)
+                        clean_out.write(frame)
+
+                        aimg = aug_img(frame, augmenter)
+                        aimgs.append(aimg)
+                        noisy_out.write(aimg)
+                    index += 1
+                    ret, frame = cap.read()
+                index = 1
+                
+    cap.release()
+    clean_out.release()
+    noisy_out.release()
+    cv2.destroyAllWindows()
+    
+    return frames, aimgs

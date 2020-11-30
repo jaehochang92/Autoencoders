@@ -2,10 +2,5 @@
 .ipynb_checkpoints
 */.ipynb_checkpoints/*
 .gitattributes
-
-
-
-
-
-
-
+*.pkl
+*.avi
