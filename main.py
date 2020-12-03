@@ -1,79 +1,78 @@
-from DenAE import *
-import tensorflow as tf
-import pandas as pd
+from modeling import *
+from pprint import pprint
+import nvgpu
 
-augmented_vids_path = 'D:/20.share/jaehochang/SP2Robotics/videos'
 
-# Input set that invokes memory exhaustion
-# whfactor = 8
-# batch_size = 32
+augmenters_c = {
+    'Env': {
+        # 'Snowy': ia.FastSnowyLandscape(lightness_threshold=150, lightness_multiplier=2.5),
+        # 'Clouds': ia.Clouds(),
+        # 'Fog': ia.Fog(),
+        # 'Snowflakes': ia.Snowflakes(flake_size=(0.1, 0.4), speed=(0.01, 0.05)),
+        # 'Rain': ia.Rain(drop_size=(0.10, 0.20), speed=(0.1, 0.3)),
+        # 'Darken': ia.Multiply(.3, per_channel=.5)
+    },
+    'Trs': {
+        'GN': ia.AdditiveGaussianNoise(loc=0, scale=(0.0, 1 / 4 * 255), per_channel=0.2),
+        # 'VertFlip': ia.Flipud(),
+        # 'HorizFlip': ia.HorizontalFlip(),
+        # 'Rotate': ia.Rotate(rotate=(-45, 45)),
+        # 'Zoom': ia.Affine(scale={"x": (1, 1.5), "y": (1, 1.5)})
+    }
+}
+
+vids_path = 'D:/20.share/jaehochang/SP2Robotics/videos'
+pprint(nvgpu.gpu_info())
 
 # Input set
 ts_size = .4
 batch_size = 2
-epochs = 200
+epochs = 500
 
 # Prepare dataset
-vid = 2
-frame_interval = 5
-max_frame = 10000
-whfactor = 12
+vid = 1
+frame_interval = 20
+max_frame = 100000
+whfactor = 13
 
-def
+# Configure model
+CNN_filters = [48]
+max_gpu_mem_GB = 6.9
 
-fnames = (f'vid{vid}-tr-{frame_interval}fi-{whfactor}fctr.pkl', f'vid{vid}-ts-{frame_interval}fi-{whfactor}fctr.pkl')
-if not os.path.exists(fnames[0]):  # When you build initial dataset
-    dataset = iaug_setup(augmented_vids_path, vid, augmenters_c, whfactor, max_frame, frame_interval)
-    dataset = np.array([*dataset])[vid - 1]  # (videos, frames, clean / noisy, height, width, RGB)
-    X_train, X_test = split_trts(dataset[:, 0], dataset[:, 1], ts_size)
-    pd.to_pickle(X_train, fnames[0]), pd.to_pickle(X_test, fnames[1])
-else:  # Load past dataset
-    X_train, X_test = pd.read_pickle(fnames[0]), pd.read_pickle(fnames[1])
-print(X_train.shape, X_test.shape)
+fname, X_train, X_test = prepare_dataset(vids_path, augmenters_c, max_frame, vid, frame_interval, whfactor, ts_size)
 
 if __name__ == '__main__':
-    check_gpus()
+    config_gpus(max_gpu_mem_GB)
     # Train your model
-    mname = f'{X_train.shape[2:4]}-{epochs}e-{batch_size}b'
-
-    print("=== You're trying... ===")
-    print(f'fnames:     {fnames}')
+    mname = f'vid{vid}-{X_train.shape[2:4]}-{epochs}e-{batch_size}b'
+    print()
+    print("===== You're trying ...")
+    print(f'fname:      {fname}')
     print(f'mname:      {mname}')
-    print("========================")
-
+    print("=====")
+    print()
     while input('Proceed? y/n: ') == 'y':
         if not os.path.exists(mname):
-            # Build your model
-            filters = [64]
-            autoencoder = build_model(X_train[0, 0].shape, filters)
-            print('Your model:')
-            print(autoencoder.summary())
+            my_model = build_model(X_train[0, 0].shape, CNN_filters)
+            print('Your model:'), print(my_model.summary())
             if input('Fit? y/n: ') == 'y':
-                history = autoencoder.fit(X_train[:, 1], X_train[:, 0],  # noisy train, clean train
-                                          batch_size=batch_size, epochs=epochs, verbose=True,
-                                          validation_data=(X_test[:, 1], X_test[:, 0])).history
-                autoencoder.save(mname)
+                history = my_model.fit(X_train[:, 1], X_train[:, 0],  # noisy train, clean train
+                                       batch_size=batch_size, epochs=epochs, verbose=True,
+                                       validation_data=(X_test[:, 1], X_test[:, 0])).history
+                my_model.save(mname)
                 pd.to_pickle(history, f'{mname}/history')
             else:
                 break
         else:  # get pretrained one
-            autoencoder = tf.keras.models.load_model(mname)
-            print(autoencoder.summary())
-            history = pd.read_pickle(f'{mname}/history')
+            my_model = tf.keras.models.load_model(mname)
+            print('Your model:'), print(my_model.summary())
+            history = pd.read_pickle(os.path.join(mname, 'history'))
 
-        decoded_imgs = autoencoder.predict(X_test[:, 1], batch_size=batch_size)
-        pd.to_pickle(decoded_imgs, 'decoded_imgs.pkl')
-
-        yn, i = 'n', 0
-        while yn == 'n':
-            i += 1
-            plt.figure(figsize=(30, 15))
-            # display original test set
-            plt.subplot(1, 2, 1), plt.imshow(X_test[:, 1][i])
-            # display reconstructed figure
-            plt.subplot(1, 2, 2), plt.imshow(decoded_imgs[i])
-            plt.show()
-            yn = input('Stop? y/n: ')
+        # Denoise image
+        denoised_imgs = my_model.predict(X_test[:, 1], batch_size=batch_size)
+        denoised_imgs.save(os.path.join(mname, 'decoded_imgs.npy'))
+        pd.to_pickle(denoised_imgs, )
+        comparison(X_test, denoised_imgs)
 
         print_history(history)
-        inspect_model(2, X_test[:, 1][-1], autoencoder)  # noisy test
+        inspect_model(2, X_test[:, 1][-1], my_model)  # noisy test
