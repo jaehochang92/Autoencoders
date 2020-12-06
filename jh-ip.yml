@@ -1,5 +1,6 @@
 # Install CUDA toolkit and cuDNN with proper versions
 # CUDA toolkit == 10.1, cuDNN == 7.*
+
 channels:
   - conda-forge
   - defaults
@@ -17,7 +18,7 @@ dependencies:
   - scipy=1.5.3
   - tqdm=4.53.0
   - pip:
-    - numpy==1.18.5
-    - opencv-python==4.4.0.46
-    - tensorflow==2.3.1
-    - nvgpu
+      - numpy==1.18.5
+      - opencv-python==4.4.0.46
+      - tensorflow==2.3.1
+      - nvgpu
