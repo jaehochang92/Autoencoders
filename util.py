@@ -70,7 +70,7 @@ def prepare_dataset(video_path: str, vid_no: str, w: int, h: int, frame_interval
     print('Test volume shape: ')
     print('  ', ts.shape)
     print()
-    return tr, ts
+    return noisy_vp.vid_vol, tr, ts
 
 
 def print_history(history):

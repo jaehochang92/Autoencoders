@@ -46,6 +46,16 @@ def build_model(input_shape, cnn_filters):
     return model
 
 
+def do_denoising(model, model_name, target, batch_size):
+    denoised_video = model.predict(target, batch_size=batch_size)
+    denoised_vp = VideoProcessor(video_path=0)
+    denoised_vp.vid_vol = (denoised_video * 255).astype(np.uint8)
+    denoised_vp.frame_w = denoised_video.shape[2]
+    denoised_vp.frame_h = denoised_video.shape[1]
+    denoised_vp.augment_vid(os.path.join('denoised_videos', model_name + '.avi'),
+                            ia.Identity())
+
+
 def comparison(X_test, denoised_imgs):
     yn, i = 'n', 0
     while yn == 'n':
