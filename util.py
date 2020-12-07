@@ -20,7 +20,7 @@ def config_args(vids_path, factor):
     for root, dirs, files in os.walk(vids_path):
         for file in files:
             args['videos'].append(os.path.join(root, file))
-    h, w = 9 * 4 * factor, 16 * 4 * factor
+    h, w = 9 * factor, 16 * factor
     return args, h, w
 
 
@@ -32,7 +32,9 @@ def config_gpus(memory_limit):
                 gpus[0],
                 [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=memory_limit * 1024)]
             )
-            tf.config.experimental.set_memory_growth(gpus[0], True)
+            # tf.config.experimental.set_memory_growth(gpus[0], True)
+            # logical_gpus = tf.config.experimental.list_logical_devices('GPU')
+            # print(len(gpus), "Physical GPU(s),", len(logical_gpus), "Logical GPU(s)")
         except RuntimeError as e:
             # must enable memory growth when starting program
             print(e)
@@ -41,8 +43,8 @@ def config_gpus(memory_limit):
 def split_trts(video_volume, ts_size):
     vol_tr, vol_ts = model_selection.train_test_split(video_volume, test_size=ts_size)
     vol_tr, vol_ts = np.asarray(vol_tr), np.asarray(vol_ts)
-    vol_tr = vol_tr.astype("float32") / 255.
-    vol_ts = vol_ts.astype("float32") / 255.
+    vol_tr /= 255.
+    vol_ts /= 255.
     return vol_tr, vol_ts
 
 
@@ -64,13 +66,14 @@ def prepare_dataset(video_path: str, vid_no: str, w: int, h: int, frame_interval
     clean_vp.vid_vol = resize(clean_vp.vid_vol, (h, w))
     noisy_vp.vid_vol = resize(noisy_vp.vid_vol, (h, w))
     zipped_vol = np.array([*zip(clean_vp.vid_vol, noisy_vp.vid_vol)])
+    noisy = noisy_vp.vid_vol / 255.
     tr, ts = split_trts(zipped_vol, ts_size)
     print('Train volume shape:')
     print('  ', tr.shape)
     print('Test volume shape: ')
     print('  ', ts.shape)
     print()
-    return noisy_vp.vid_vol, tr, ts
+    return noisy, tr, ts
 
 
 def print_history(history):
@@ -105,9 +108,7 @@ class VideoProcessor:
         self.cap.release()
         volume = np.stack(volume, axis=0)
         print(f"Volume shape: {volume.shape}")
-        if input('Write volume array? */n: ') != 'n':
-            self.vid_vol = volume
-            print()
+        self.vid_vol = volume
 
     def augment_vid(self, file_name: str, augmenter: ia.Augmenter) -> None:
         if self.vid_vol is not None:

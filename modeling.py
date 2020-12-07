@@ -1,53 +1,67 @@
 from util import *
-from tensorflow import keras
-# from tensorflow.keras.layers import Input, add
-from tensorflow.keras.layers import BatchNormalization
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, UpSampling2D, Dense
-from tensorflow.keras import regularizers
-from tensorflow.keras.utils import plot_model
-from tensorflow.keras.models import Model
+# from tensorflow.keras import regularizers
+from tensorflow.keras.layers import Input, InputLayer, BatchNormalization
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, UpSampling2D
+from tensorflow.keras.layers import Dense, Flatten, Reshape
+from tensorflow.keras.models import Sequential, Model
+# from tensorflow.keras.utils import plot_model
 from tensorflow.keras.callbacks import LearningRateScheduler
+
+
 
 # from tensorflow.python.client import device_lib
 
 
 def lr_schedule(epoch):
     lrate = 0.01
-    if epoch > 75:
+    if epoch > 100:
         lrate = 0.005
-    elif epoch > 100:
+    elif epoch > 200:
         lrate = 0.001
     return lrate
 
 
-def build_model(input_shape, cnn_filters):
-    model = keras.Sequential()
-    model.add(keras.layers.Input(input_shape))
-    # Encoder
+def build_cnn_ae(input_shape, cnn_filters):
+    model = Sequential()
+    model.add(InputLayer(input_shape))
     for depth in cnn_filters:
         model.add(Conv2D(depth, (3, 3), activation='relu', padding='same'))
         model.add(BatchNormalization())
-    model.add(UpSampling2D((2, 2)))
-    model.add(BatchNormalization())
-    # Decoder
+        model.add(MaxPooling2D())
+        model.add(BatchNormalization())
     for depth in cnn_filters[::-1]:
         model.add(Conv2D(depth, (3, 3), activation='relu', padding='same'))
         model.add(BatchNormalization())
-    model.add(MaxPooling2D((2, 2), padding='same'))
-    model.add(BatchNormalization())
-    for depth in cnn_filters:
-        model.add(Conv2D(depth, (3, 3), activation='relu', padding='same'))
+        model.add(UpSampling2D())
         model.add(BatchNormalization())
-    model.add(Dense(3))
-    # model.add(Conv2D(3, (3, 3), activation='linear', padding='same'))
-    optmz = keras.optimizers.SGD(momentum=.05)
-    loss = keras.losses.MeanSquaredError()
+    model.add(Conv2D(3, (3, 3), activation='relu', padding='same'))
+    model.add(BatchNormalization())
+    # model.add(Dense(3))
+    optmz = tf.keras.optimizers.SGD(momentum=.05)
+    loss = tf.keras.losses.MeanSquaredError()
     model.compile(optmz, loss)
     return model
 
 
-def do_denoising(model, model_name, target, batch_size):
-    denoised_video = model.predict(target, batch_size=batch_size)
+def build_ae(input_shape, code_size):
+    # The encoder
+    ae = Sequential()
+    ae.add(InputLayer(input_shape))
+    ae.add(Flatten(data_format='channels_last'))
+    ae.add(Dense(code_size))
+    # The decoder
+    ae.add(
+        Dense(np.prod(input_shape)))  # np.prod(img_shape) is the same as 32*32*3, it's more generic than saying 3072
+    ae.add(Reshape(input_shape))
+    # The reconstruction
+    optmz = tf.keras.optimizers.SGD(momentum=.05)
+    loss = tf.keras.losses.MeanSquaredError()
+    ae.compile(optmz, loss)
+    return ae
+
+
+def do_denoising(model, model_name, test, batch_size):
+    denoised_video = model.predict(test, batch_size=batch_size)
     denoised_vp = VideoProcessor(video_path=0)
     denoised_vp.vid_vol = (denoised_video * 255).astype(np.uint8)
     denoised_vp.frame_w = denoised_video.shape[2]
