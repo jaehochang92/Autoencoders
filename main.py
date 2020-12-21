@@ -3,13 +3,14 @@ from pprint import pprint
 import pandas as pd
 from methods import *
 from models import *
-from tensorflow.keras.callbacks import LearningRateScheduler
-from tensorflow.keras.utils import normalize
+from tensorflow.keras.callbacks import LearningRateScheduler, EarlyStopping
+
+
 # import nvgpu
 
 
 def main(raw_videos_path, size_factor, augmenters_dict, vid_no, frame_interval, ts_size, batch_size, epochs,
-         model_builder, interactive=True):
+         model_builder, layeroi, interactive=True):
     args, h, w = config_args(raw_videos_path, size_factor)
     h, w = int(h), int(w)
     pprint((args, f'w: {w}, h: {h}'))
@@ -17,7 +18,7 @@ def main(raw_videos_path, size_factor, augmenters_dict, vid_no, frame_interval, 
     if ask != 'n':
         for augmenter_name, augmenter in augmenters_dict.items():
             avid_path, train, test = prepare_dataset(args['videos'][vid_no - 1], vid_no, w, h, frame_interval,
-                                                 ts_size, augmenter, augmenter_name)
+                                                     ts_size, augmenter, augmenter_name)
             train, test = train / 255., test / 255.
             # Train your model
             mname = os.path.join(
@@ -36,7 +37,8 @@ def main(raw_videos_path, size_factor, augmenters_dict, vid_no, frame_interval, 
                     history = my_model.fit(train[:, 1], train[:, 0],  # noisy train, clean train
                                            batch_size=batch_size, epochs=epochs, verbose=True,
                                            validation_data=(test[:, 1], test[:, 0]),
-                                           callbacks=[LearningRateScheduler(lr_schedule)],
+                                           callbacks=[LearningRateScheduler(lr_schedule),
+                                                      EarlyStopping(min_delta=0.0005, patience=20)],
                                            ).history
                     my_model.save(mname)
                     pd.to_pickle(history, f'{mname}/history')
@@ -57,11 +59,11 @@ def main(raw_videos_path, size_factor, augmenters_dict, vid_no, frame_interval, 
                 else:
                     break
             print_history(history)
-            inspect_model('batch_normalization_1', test[:, 1], my_model)  # third layer
+            inspect_model(layeroi, test[-1, 1], my_model)  # third layer
 
 
 if __name__ == '__main__':
-    config_gpus(memory_limit=7)
+    config_gpus(memory_limit=6)
     # print('NVIDIA GPU info.:')
     # pprint(nvgpu.gpu_info())
     # print()
@@ -70,13 +72,13 @@ if __name__ == '__main__':
         # 'Clouds': ia.Clouds(),
         # 'Fog': ia.Fog(),
         # 'Snowflakes': ia.Snowflakes(flake_size=(0.4, 0.6), speed=(0.03, 0.05)),
-        'SnowyFlakes': ia.Sequential([
-            ia.FastSnowyLandscape(lightness_threshold=150, lightness_multiplier=2.5),
-            ia.Snowflakes(flake_size=(0.4, 0.6), speed=(0.03, 0.05))
-        ])
+        # 'SnowyFlakes': ia.Sequential([
+        #     ia.FastSnowyLandscape(lightness_threshold=150, lightness_multiplier=2.5),
+        #     ia.Snowflakes(flake_size=(0.6, 0.8), speed=(0.03, 0.05))
+        # ])
         # 'Rain': ia.Rain(drop_size=(0.10, 0.20), speed=(0.1, 0.3)),
         # 'AGN': ia.AdditiveGaussianNoise(loc=0, scale=(25, 27), per_channel=.5),
-        # 'APN': ia.AdditivePoissonNoise(lam=30, per_channel=.5),
+        'APN': ia.AdditivePoissonNoise(lam=20, per_channel=.5),
     }
     main(
         # data loading variables
@@ -87,8 +89,9 @@ if __name__ == '__main__':
         augmenters_dict=augmenters_dict,
         # train setup variables
         ts_size=.4,
-        batch_size=4,
-        epochs=30,
+        batch_size=24,  # I have 48 cores
+        epochs=200,
         model_builder=build_cnn_ae,
+        layeroi=['encoded', 'decoded'],
         interactive=False
     )

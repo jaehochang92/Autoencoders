@@ -1,15 +1,17 @@
 import os
+
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 from imgaug import augmenters as ia
 from sklearn import model_selection
+
+
 # from pytictoc import TicToc
-from tensorflow.image import resize
 
 
-def config_args(vids_path, factor):
+def config_args(vids_path: str, factor: int) -> tuple:
     args = {'videos': []}
     for root, dirs, files in os.walk(vids_path):
         for file in files:
@@ -18,7 +20,7 @@ def config_args(vids_path, factor):
     return args, h, w
 
 
-def config_gpus(memory_limit):
+def config_gpus(memory_limit: float) -> None:
     gpus = tf.config.experimental.list_physical_devices('GPU')
     if gpus:
         try:
