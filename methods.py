@@ -71,7 +71,6 @@ def prepare_dataset(original_video_path: str, vid_no: int, w: int, h: int, frame
 
 def print_history(history):
     # Plot train-validation trace
-    print(history.keys())
     plt.plot(history['loss'])
     plt.plot(history['val_loss'])
     plt.title('model loss')

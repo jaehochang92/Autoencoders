@@ -37,8 +37,10 @@ def main(raw_videos_path, size_factor, augmenters_dict, vid_no, frame_interval, 
                     history = my_model.fit(train[:, 1], train[:, 0],  # noisy train, clean train
                                            batch_size=batch_size, epochs=epochs, verbose=True,
                                            validation_data=(test[:, 1], test[:, 0]),
-                                           callbacks=[LearningRateScheduler(lr_schedule),
-                                                      EarlyStopping(min_delta=0.0005, patience=20)],
+                                           callbacks=[
+                                               LearningRateScheduler(lr_schedule),
+                                               # EarlyStopping(min_delta=0.0001, patience=10)
+                                           ],
                                            ).history
                     my_model.save(mname)
                     pd.to_pickle(history, f'{mname}/history')
@@ -92,6 +94,6 @@ if __name__ == '__main__':
         batch_size=24,  # I have 48 cores
         epochs=200,
         model_builder=build_cnn_ae,
-        layeroi=['encoded', 'decoded'],
+        layeroi=['batch_normalization_3'],
         interactive=False
     )
